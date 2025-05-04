@@ -2,6 +2,10 @@
 
 SquaRevolve is a grid-based life simulation where squares evolve and interact in a virtual ecosystem.
 
+## Live Demo
+
+You can try the simulation online at: [https://cyberpanditg.github.io/SquaRevolve/](https://cyberpanditg.github.io/SquaRevolve/)
+
 ## Features
 
 - Grid-based movement system
