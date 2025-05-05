@@ -1,11 +1,17 @@
 // Entity management
 const foodNeededToReproduce = 3;
-const survivalTime = 600; // 10 seconds at 60fps
+const baseSurvivalTime = 600; // 10 seconds at 60fps at normal speed
 const dyingAnimationTime = 30; // Frames to show dying animation
 const initialProducers = 10;
+const baseEntityMoveDelay = 15; // Default delay at 1.0x speed
 
 // Entity collection
 let entities = [];
+
+// Function to get current survival time adjusted for simulation speed
+function getCurrentSurvivalTime() {
+    return Math.round(baseSurvivalTime / simulationSpeed);
+}
 
 function createEntity(parent = null) {
     const size = gridCellSize * 0.8; // Make entity slightly smaller than grid cell
@@ -27,6 +33,9 @@ function createEntity(parent = null) {
     // Get pixel coordinates from grid position
     const position = getPixelCoords(gridX, gridY);
     
+    // Apply current simulation speed to movement delay
+    const moveDelay = Math.max(1, Math.round(baseEntityMoveDelay / simulationSpeed));
+    
     // Create a new entity with default properties
     const entity = {
         x: position.x,
@@ -40,7 +49,7 @@ function createEntity(parent = null) {
         timeSinceLastMeal: 0, // Counter for hunger system
         isDying: false, // Visual indicator for dying state
         moveCooldown: 0, // Counter to control movement speed
-        moveDelay: 15 // Frames between moves (controls speed)
+        moveDelay: moveDelay // Apply current speed
     };
     
     // Handle mutations if parent exists
@@ -131,13 +140,16 @@ function updateEntities() {
         // Update hunger status
         entity.timeSinceLastMeal++;
         
+        // Get the current adjusted survival time based on simulation speed
+        const currentSurvivalTime = getCurrentSurvivalTime();
+        
         // Check if entity should die from hunger
-        if (entity.timeSinceLastMeal >= survivalTime) {
+        if (entity.timeSinceLastMeal >= currentSurvivalTime) {
             // Show dying animation
             entity.isDying = true;
             
             // Remove entity after brief flashing animation
-            if (entity.timeSinceLastMeal >= survivalTime + dyingAnimationTime) {
+            if (entity.timeSinceLastMeal >= currentSurvivalTime + dyingAnimationTime) {
                 entities.splice(i, 1);
                 continue;
             }
