@@ -98,7 +98,7 @@ function simulationLoop(timestamp) {
     }
     
     // Clear canvas
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = '#eed9c4';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     // Draw grid

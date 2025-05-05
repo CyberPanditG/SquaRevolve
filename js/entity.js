@@ -36,7 +36,7 @@ function createEntity(parent = null) {
         size: size,
         foodCollected: 0,
         mutations: {},
-        baseColor: '#3b82f6', // Blue
+        baseColor: '#d2afff', // Blue
         timeSinceLastMeal: 0, // Counter for hunger system
         isDying: false, // Visual indicator for dying state
         moveCooldown: 0, // Counter to control movement speed

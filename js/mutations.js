@@ -2,7 +2,7 @@
 const mutations = {
     mouth: {
         chance: 0.08,
-        color: '#ef4444', // Red
+        color: '#8F00FF', // Red
         onUpdate: (entity, allEntities) => {
             // Grid-based predation - entities with mouth eat entities in the same grid cell
             

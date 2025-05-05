@@ -18,7 +18,7 @@ function createFood() {
         gridX: gridX,
         gridY: gridY,
         radius: 4,
-        color: '#4ade80' // Green
+        color: '#421d1a' // Green
     };
 }
 
