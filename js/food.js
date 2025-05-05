@@ -4,7 +4,7 @@ const maxFood = 500;
 
 // Food collection
 let foods = [];
-let minFoodAmount = 0; // Default minimum food amount
+let minFoodAmount = 250; // Default minimum food amount
 
 function createFood() {
     // Place food at grid cell centers
