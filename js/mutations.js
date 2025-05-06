@@ -1,28 +1,22 @@
 // Mutation definitions - easy to add new mutations
 const mutations = {
     grassAffinity: {
-        chance: 0.01, // 8% chance to get this mutation, like others
+        chance: 0.01, // 1% chance to get this mutation
         color: '#3b82f6', // Blue
         onUpdate: (entity, allEntities) => {
             // Skip if entity has entityAffinity (conflicting food source)
             if (entity.mutations.entityAffinity) return false;
             
-            // Grid-based food collection
-            for (let i = foods.length - 1; i >= 0; i--) {
-                const food = foods[i];
-                
-                // Check if entity and food are in the same grid cell
-                if (entity.gridX === food.gridX && entity.gridY === food.gridY) {
-                    entity.foodCollected++;
-                    foods.splice(i, 1);
-                    return true; // Return true to indicate food was eaten (resets hunger timer)
-                }
-            }
-            return false; // No food eaten
+            // Use the collectFood function from food.js
+            const foodsBeforeCollection = foods.length;
+            collectFood(entity);
+            
+            // Return true if any food was eaten (foods array length changed)
+            return foods.length < foodsBeforeCollection;
         }
     },
     entityAffinity: {
-        chance: 0.01,
+        chance: 0.01, // 1% chance to get this mutation
         color: '#ef4444', // Red
         onUpdate: (entity, allEntities) => {
             // Find potential prey in the same grid cell
@@ -48,7 +42,7 @@ const mutations = {
         }
     }
     // Add more mutations here in the future, like:
-    // speed: { chance: 0.08, color: '#9333ea', onUpdate: ... }
-    // size: { chance: 0.08, color: '#0369a1', onUpdate: ... }
+    // speed: { chance: 0.01, color: '#9333ea', onUpdate: ... }
+    // size: { chance: 0.01, color: '#0369a1', onUpdate: ... }
     // etc.
 };
