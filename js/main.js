@@ -88,6 +88,11 @@ function simulationLoop(timestamp) {
 function resetSimulation() {
     entities = [];
     foods = [];
+    
+    // Reset mutation tracking statistics
+    mutationStats.blueToRed = 0;
+    mutationStats.redToBlue = 0;
+    
     resetStatsTracking();
     lastFrameTime = performance.now();
     autoResetTimer = 0;
