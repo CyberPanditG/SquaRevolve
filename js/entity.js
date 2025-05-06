@@ -5,6 +5,12 @@ const dyingAnimationTime = 30; // Frames to show dying animation
 const initialProducers = 10;
 const baseEntityMoveDelay = 15; // Default delay at 1.0x speed
 
+// Debug tracking - mutation counts
+const mutationStats = {
+    blueToRed: 0,  // grassAffinity to entityAffinity
+    redToBlue: 0   // entityAffinity to grassAffinity
+};
+
 // Entity collection
 let entities = [];
 
@@ -20,12 +26,59 @@ function createEntity(parent = null) {
     let gridX, gridY;
     
     if (parent) {
-        // Position near parent (within 2 cells) but on grid
-        const parentGridCoords = getGridCoords(parent.x, parent.y);
-        gridX = Math.max(0, Math.min(gridWidth - 1, parentGridCoords.x + Math.floor(Math.random() * 5 - 2)));
-        gridY = Math.max(0, Math.min(gridHeight - 1, parentGridCoords.y + Math.floor(Math.random() * 5 - 2)));
+        // Check only the 8 adjacent squares around the parent
+        const adjacentCells = [
+            { dx: -1, dy: -1 }, // Top-left
+            { dx: 0, dy: -1 },  // Top
+            { dx: 1, dy: -1 },  // Top-right
+            { dx: -1, dy: 0 },  // Left
+            { dx: 1, dy: 0 },   // Right
+            { dx: -1, dy: 1 },  // Bottom-left
+            { dx: 0, dy: 1 },   // Bottom
+            { dx: 1, dy: 1 }    // Bottom-right
+        ];
+        
+        // Shuffle the adjacent cells to randomize which one is chosen
+        for (let i = adjacentCells.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [adjacentCells[i], adjacentCells[j]] = [adjacentCells[j], adjacentCells[i]];
+        }
+        
+        // Try each adjacent cell in the shuffled order
+        let foundEmptyCell = false;
+        for (const cell of adjacentCells) {
+            const tempX = parent.gridX + cell.dx;
+            const tempY = parent.gridY + cell.dy;
+            
+            // Check if this position is within grid bounds
+            if (tempX < 0 || tempX >= gridWidth || tempY < 0 || tempY >= gridHeight) {
+                continue; // Skip this position if it's out of bounds
+            }
+            
+            // Check if this cell is already occupied by another entity
+            let cellOccupied = false;
+            for (let i = 0; i < entities.length; i++) {
+                if (entities[i].gridX === tempX && entities[i].gridY === tempY) {
+                    cellOccupied = true;
+                    break;
+                }
+            }
+            
+            if (!cellOccupied) {
+                gridX = tempX;
+                gridY = tempY;
+                foundEmptyCell = true;
+                break;
+            }
+        }
+        
+        // If we couldn't find an empty cell, return null
+        if (!foundEmptyCell) {
+            return null;
+        }
     } else {
-        // Random position on grid
+        // For initial entities, just place them randomly
+        // (This only happens at the start when the grid is nearly empty)
         gridX = Math.floor(Math.random() * gridWidth);
         gridY = Math.floor(Math.random() * gridHeight);
     }
@@ -44,16 +97,36 @@ function createEntity(parent = null) {
         gridY: gridY,
         size: size,
         foodCollected: 0,
-        mutations: {},
-        baseColor: '#3b82f6', // Blue
+        mutations: {},  // Back to using an object to track multiple mutations
+        baseColor: '#777777', // Gray default color
         timeSinceLastMeal: 0, // Counter for hunger system
         isDying: false, // Visual indicator for dying state
         moveCooldown: 0, // Counter to control movement speed
         moveDelay: moveDelay // Apply current speed
     };
     
-    // Handle mutations if parent exists
+    // Define mutation groups (mutations that cannot coexist)
+    const mutationGroups = {
+        foodSource: ['grassAffinity', 'entityAffinity'] // Entities can only have one food source
+        // In the future you can add more groups, like:
+        // movement: ['fastMovement', 'teleportation']
+        // defense: ['armor', 'camouflage']
+    };
+    
+    // Get all mutations and their groups
+    const mutationToGroup = {};
+    Object.entries(mutationGroups).forEach(([groupName, mutations]) => {
+        mutations.forEach(mutation => {
+            mutationToGroup[mutation] = groupName;
+        });
+    });
+    
+    // Handle mutations
     if (parent) {
+        // Track original parent mutation (for debugging)
+        const hadGrassAffinity = parent.mutations.grassAffinity;
+        const hadEntityAffinity = parent.mutations.entityAffinity;
+        
         // Inherit parent mutations
         Object.keys(parent.mutations).forEach(mutationName => {
             entity.mutations[mutationName] = true;
@@ -64,11 +137,32 @@ function createEntity(parent = null) {
             // Skip if entity already has this mutation
             if (entity.mutations[mutationName]) return;
             
-            // Check for mutation
+            // Check for mutation with 8% chance
             if (Math.random() < mutations[mutationName].chance) {
+                // If this mutation belongs to a group, remove any existing mutations from same group
+                const group = mutationToGroup[mutationName];
+                if (group) {
+                    mutationGroups[group].forEach(groupMutation => {
+                        if (entity.mutations[groupMutation]) {
+                            delete entity.mutations[groupMutation];
+                        }
+                    });
+                }
+                
+                // Add the new mutation
                 entity.mutations[mutationName] = true;
+                
+                // Track mutation changes for debugging - moved here for consistency
+                if (hadGrassAffinity && mutationName === 'entityAffinity') {
+                    mutationStats.blueToRed++;
+                } else if (hadEntityAffinity && mutationName === 'grassAffinity') {
+                    mutationStats.redToBlue++;
+                }
             }
         });
+    } else {
+        // Initial entities start with grassAffinity
+        entity.mutations.grassAffinity = true;
     }
     
     return entity;
@@ -83,8 +177,8 @@ function getEntityColor(entity) {
     }
     
     // Return color based on mutations (priority to certain mutations)
-    if (entity.mutations.mouth) return mutations.mouth.color;
-    // Add more mutation color checks here when adding mutations
+    if (entity.mutations.entityAffinity) return mutations.entityAffinity.color;
+    if (entity.mutations.grassAffinity) return mutations.grassAffinity.color;
     
     // Default color if no mutations affecting appearance
     return entity.baseColor;
@@ -104,11 +198,35 @@ function moveEntityOnGrid(entity) {
         { dx: -1, dy: -1 }  // Up-left
     ];
     
-    // Filter out directions that would go off the grid
+    // Special case for predators (entities with entityAffinity) to allow them to move onto prey
+    const isPredator = entity.mutations.entityAffinity;
+    
+    // Filter out directions that would go off the grid or into occupied cells (with special handling for predators)
     const validDirections = directions.filter(dir => {
         const newGridX = entity.gridX + dir.dx;
         const newGridY = entity.gridY + dir.dy;
-        return newGridX >= 0 && newGridX < gridWidth && newGridY >= 0 && newGridY < gridHeight;
+        
+        // First check if it's within grid bounds
+        if (newGridX < 0 || newGridX >= gridWidth || newGridY < 0 || newGridY >= gridHeight) {
+            return false;
+        }
+        
+        // Then check if the cell is already occupied by another entity
+        for (let i = 0; i < entities.length; i++) {
+            const otherEntity = entities[i];
+            // Skip checking against itself
+            if (otherEntity === entity) continue;
+            
+            if (otherEntity.gridX === newGridX && otherEntity.gridY === newGridY) {
+                // If this entity is a predator and the other entity is prey, the move is valid
+                if (isPredator && !otherEntity.mutations.entityAffinity) {
+                    return true;
+                }
+                return false; // Cell is occupied by non-prey or the entity is not a predator
+            }
+        }
+        
+        return true; // Cell is valid and unoccupied
     });
     
     if (validDirections.length > 0) {
@@ -124,6 +242,7 @@ function moveEntityOnGrid(entity) {
         entity.x = newPosition.x;
         entity.y = newPosition.y;
     }
+    // If no valid directions, entity stays in place
 }
 
 function updateEntities() {
@@ -133,7 +252,7 @@ function updateEntities() {
     // Update grid with entity positions
     updateGridOccupancy();
     
-    // Now handle movement, edges, food collection and reproduction
+    // Now handle movement, hunger, and reproduction
     for (let i = entities.length - 1; i >= 0; i--) {
         const entity = entities[i];
         
@@ -163,15 +282,17 @@ function updateEntities() {
             entity.moveCooldown--;
         }
         
-        // Check for food collection - only if entity doesn't have mouth
-        if (!entity.mutations.mouth) {
-            collectFood(entity);
-        }
-        
         // Reproduce if enough food collected
         if (entity.foodCollected >= foodNeededToReproduce) {
             entity.foodCollected = 0;
-            entities.push(createEntity(entity));
+            
+            // Try to create a new entity
+            const newEntity = createEntity(entity);
+            
+            // Only add the entity if we found a valid position for it
+            if (newEntity) {
+                entities.push(newEntity);
+            }
         }
         
         // Draw entity
@@ -192,7 +313,7 @@ function processEntityMutations() {
         
         // Check each mutation the entity has and call its update function
         Object.keys(entity.mutations).forEach(mutationName => {
-            if (entity.mutations[mutationName] && mutations[mutationName].onUpdate) {
+            if (mutations[mutationName].onUpdate) {
                 const actionTaken = mutations[mutationName].onUpdate(entity, entities);
                 
                 // Reset hunger timer if prey was eaten
