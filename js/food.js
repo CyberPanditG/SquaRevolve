@@ -39,7 +39,7 @@ function drawFood() {
 }
 
 function collectFood(entity) {
-    // Grid-based food collection
+    // Grid-base food collection
     for (let i = foods.length - 1; i >= 0; i--) {
         const food = foods[i];
         
