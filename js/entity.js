@@ -1,15 +1,9 @@
 // Entity management
-const foodNeededToReproduce = 3;
+const foodNeededToReproduce = 5;
 const baseSurvivalTime = 600; // 10 seconds at 60fps at normal speed
 const dyingAnimationTime = 30; // Frames to show dying animation
 const initialProducers = 10;
 const baseEntityMoveDelay = 15; // Default delay at 1.0x speed
-
-// Debug tracking - mutation counts
-const mutationStats = {
-    blueToRed: 0,  // grassAffinity to entityAffinity
-    redToBlue: 0   // entityAffinity to grassAffinity
-};
 
 // Entity collection
 let entities = [];
@@ -19,76 +13,54 @@ function getCurrentSurvivalTime() {
     return Math.round(baseSurvivalTime / simulationSpeed);
 }
 
+// Helper function to check if a grid cell is occupied
+function isCellOccupied(gridX, gridY, excludeEntity = null) {
+    // Check if position is within grid bounds
+    if (gridX < 0 || gridX >= gridWidth || gridY < 0 || gridY >= gridHeight) {
+        return true; // Consider out-of-bounds as "occupied"
+    }
+
+    // Check if cell is occupied by an entity
+    for (let i = 0; i < entities.length; i++) {
+        const entity = entities[i];
+        if (entity === excludeEntity) continue; // Skip the excluded entity
+        if (entity.gridX === gridX && entity.gridY === gridY) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function createEntity(parent = null) {
     const size = gridCellSize * 0.8; // Make entity slightly smaller than grid cell
-    
+
     // Calculate position on grid
     let gridX, gridY;
-    
+
     if (parent) {
-        // Check only the 8 adjacent squares around the parent
-        const adjacentCells = [
-            { dx: -1, dy: -1 }, // Top-left
-            { dx: 0, dy: -1 },  // Top
-            { dx: 1, dy: -1 },  // Top-right
-            { dx: -1, dy: 0 },  // Left
-            { dx: 1, dy: 0 },   // Right
-            { dx: -1, dy: 1 },  // Bottom-left
-            { dx: 0, dy: 1 },   // Bottom
-            { dx: 1, dy: 1 }    // Bottom-right
-        ];
-        
-        // Shuffle the adjacent cells to randomize which one is chosen
-        for (let i = adjacentCells.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [adjacentCells[i], adjacentCells[j]] = [adjacentCells[j], adjacentCells[i]];
-        }
-        
-        // Try each adjacent cell in the shuffled order
-        let foundEmptyCell = false;
-        for (const cell of adjacentCells) {
-            const tempX = parent.gridX + cell.dx;
-            const tempY = parent.gridY + cell.dy;
-            
-            // Check if this position is within grid bounds
-            if (tempX < 0 || tempX >= gridWidth || tempY < 0 || tempY >= gridHeight) {
-                continue; // Skip this position if it's out of bounds
-            }
-            
-            // Check if this cell is already occupied by another entity
-            let cellOccupied = false;
-            for (let i = 0; i < entities.length; i++) {
-                if (entities[i].gridX === tempX && entities[i].gridY === tempY) {
-                    cellOccupied = true;
-                    break;
-                }
-            }
-            
-            if (!cellOccupied) {
-                gridX = tempX;
-                gridY = tempY;
-                foundEmptyCell = true;
-                break;
-            }
-        }
-        
+        // Try to find an empty cell near the parent
+        const emptyCell = findEmptyCellNearParent(parent);
+
         // If we couldn't find an empty cell, return null
-        if (!foundEmptyCell) {
+        if (!emptyCell) {
             return null;
         }
+
+        gridX = emptyCell.x;
+        gridY = emptyCell.y;
     } else {
         // For initial entities, just place them randomly
-        // (This only happens at the start when the grid is nearly empty)
         gridX = Math.floor(Math.random() * gridWidth);
         gridY = Math.floor(Math.random() * gridHeight);
     }
-    
+
     // Get pixel coordinates from grid position
     const position = getPixelCoords(gridX, gridY);
-    
+
     // Apply current simulation speed to movement delay
     const moveDelay = Math.max(1, Math.round(baseEntityMoveDelay / simulationSpeed));
-    
+
     // Create a new entity with default properties
     const entity = {
         x: position.x,
@@ -104,139 +76,47 @@ function createEntity(parent = null) {
         moveCooldown: 0, // Counter to control movement speed
         moveDelay: moveDelay // Apply current speed
     };
-    
-    // Define mutation groups (mutations that cannot coexist)
-    const mutationGroups = {
-        foodSource: ['grassAffinity', 'entityAffinity'] // Entities can only have one food source
-        // In the future you can add more groups, like:
-        // movement: ['fastMovement', 'teleportation']
-        // defense: ['armor', 'camouflage']
-    };
-    
-    // Get all mutations and their groups
-    const mutationToGroup = {};
-    Object.entries(mutationGroups).forEach(([groupName, mutations]) => {
-        mutations.forEach(mutation => {
-            mutationToGroup[mutation] = groupName;
-        });
-    });
-    
-    // Handle mutations
-    if (parent) {
-        // Track original parent mutation (for debugging)
-        const hadGrassAffinity = parent.mutations.grassAffinity;
-        const hadEntityAffinity = parent.mutations.entityAffinity;
-        
-        // Inherit parent mutations
-        Object.keys(parent.mutations).forEach(mutationName => {
-            entity.mutations[mutationName] = true;
-        });
-        
-        // Chance for new mutations
-        Object.keys(mutations).forEach(mutationName => {
-            // Skip if entity already has this mutation
-            if (entity.mutations[mutationName]) return;
-            
-            // Check for mutation with 8% chance
-            if (Math.random() < mutations[mutationName].chance) {
-                // If this mutation belongs to a group, remove any existing mutations from same group
-                const group = mutationToGroup[mutationName];
-                if (group) {
-                    mutationGroups[group].forEach(groupMutation => {
-                        if (entity.mutations[groupMutation]) {
-                            delete entity.mutations[groupMutation];
-                        }
-                    });
-                }
-                
-                // Add the new mutation
-                entity.mutations[mutationName] = true;
-                
-                // Track mutation changes for debugging - moved here for consistency
-                if (hadGrassAffinity && mutationName === 'entityAffinity') {
-                    mutationStats.blueToRed++;
-                } else if (hadEntityAffinity && mutationName === 'grassAffinity') {
-                    mutationStats.redToBlue++;
-                }
-            }
-        });
-    } else {
-        // Initial entities start with grassAffinity
-        entity.mutations.grassAffinity = true;
-    }
-    
-    return entity;
-}
 
-function getEntityColor(entity) {
-    // If entity is dying, show a flashing effect
-    if (entity.isDying) {
-        if (Math.floor(Date.now() / 100) % 2 === 0) {
-            return 'rgba(255, 255, 255, 0.7)'; // Flashing white
-        }
-    }
-    
-    // Return color based on mutations (priority to certain mutations)
-    if (entity.mutations.entityAffinity) return mutations.entityAffinity.color;
-    if (entity.mutations.grassAffinity) return mutations.grassAffinity.color;
-    
-    // Default color if no mutations affecting appearance
-    return entity.baseColor;
+    // Handle mutations using the centralized function from mutations.js
+    handleMutations(entity, parent);
+
+    return entity;
 }
 
 function moveEntityOnGrid(entity) {
     // Get possible movement directions
-    const directions = [
-        { dx: 0, dy: -1 }, // Up
-        { dx: 1, dy: 0 },  // Right
-        { dx: 0, dy: 1 },  // Down
-        { dx: -1, dy: 0 }, // Left
-        // Diagonals
-        { dx: 1, dy: -1 },  // Up-right
-        { dx: 1, dy: 1 },   // Down-right
-        { dx: -1, dy: 1 },  // Down-left
-        { dx: -1, dy: -1 }  // Up-left
-    ];
-    
+    const directions = getAdjacentCells();
+
     // Special case for predators (entities with entityAffinity) to allow them to move onto prey
     const isPredator = entity.mutations.entityAffinity;
-    
+
     // Filter out directions that would go off the grid or into occupied cells (with special handling for predators)
     const validDirections = directions.filter(dir => {
         const newGridX = entity.gridX + dir.dx;
         const newGridY = entity.gridY + dir.dy;
-        
-        // First check if it's within grid bounds
+
+        // Check if position is within grid bounds
         if (newGridX < 0 || newGridX >= gridWidth || newGridY < 0 || newGridY >= gridHeight) {
             return false;
         }
-        
-        // Then check if the cell is already occupied by another entity
-        for (let i = 0; i < entities.length; i++) {
-            const otherEntity = entities[i];
-            // Skip checking against itself
-            if (otherEntity === entity) continue;
-            
-            if (otherEntity.gridX === newGridX && otherEntity.gridY === newGridY) {
-                // If this entity is a predator and the other entity is prey, the move is valid
-                if (isPredator && !otherEntity.mutations.entityAffinity) {
-                    return true;
-                }
-                return false; // Cell is occupied by non-prey or the entity is not a predator
-            }
+
+        // For predators, we need special handling to allow them to move onto prey cells
+        if (isPredator && canPredatorAttack(entity, newGridX, newGridY)) {
+            return true;
         }
-        
-        return true; // Cell is valid and unoccupied
+
+        // Use our helper function to check if cell is occupied (excluding this entity)
+        return !isCellOccupied(newGridX, newGridY, entity);
     });
-    
+
     if (validDirections.length > 0) {
         // Choose a random direction from valid options
-        const direction = validDirections[Math.floor(Math.random() * validDirections.length)];
-        
+        const direction = getRandomElement(validDirections);
+
         // Update grid coordinates
         entity.gridX += direction.dx;
         entity.gridY += direction.dy;
-        
+
         // Update pixel coordinates
         const newPosition = getPixelCoords(entity.gridX, entity.gridY);
         entity.x = newPosition.x;
@@ -245,35 +125,84 @@ function moveEntityOnGrid(entity) {
     // If no valid directions, entity stays in place
 }
 
+function attemptReproduction(entity) {
+    // Calculate health percentage (0-100%)
+    const hungerRatio = entity.timeSinceLastMeal / getCurrentSurvivalTime();
+    const healthPercentage = (1 - hungerRatio) * 100;
+    
+    // Only allow reproduction when entity is healthy (above 70% health)
+    if (healthPercentage < 70) {
+        return; // Too hungry to reproduce
+    }
+
+    // Check local population density
+    const localEntities = countNearbyEntities(entity, 5); // Count entities within 5 grid cells
+    
+    // Reduce reproduction chance when overcrowded
+    let densityFactor = 1.0;
+    if (localEntities > 5) {
+        densityFactor = 5 / localEntities; // Reduces as density increases
+    }
+    
+    // Base reproduction chance on health
+    const reproductionChance = 0.1 * (healthPercentage / 100) * densityFactor;
+    
+    // Check food and random chance with health factor
+    if (entity.foodCollected >= foodNeededToReproduce && Math.random() < reproductionChance) {
+        entity.foodCollected -= foodNeededToReproduce;
+        
+        // Reset hunger timer partially after reproduction (reproduction takes energy)
+        entity.timeSinceLastMeal += getCurrentSurvivalTime() * 0.2; // Add 20% of survival time
+        
+        const offspring = createEntity(entity);
+        if (offspring) {
+            // Start offspring with some hunger
+            offspring.timeSinceLastMeal = getCurrentSurvivalTime() * 0.3; // 30% hungry to start
+            entities.push(offspring);
+        }
+    }
+}
+
+// Helper function to count nearby entities
+function countNearbyEntities(entity, radius) {
+    return entities.filter(other => {
+        if (entity === other) return false;
+        
+        const dx = Math.abs(entity.gridX - other.gridX);
+        const dy = Math.abs(entity.gridY - other.gridY);
+        return dx <= radius && dy <= radius;
+    }).length;
+}
+
 function updateEntities() {
     // First, process all entities with special mutation behaviors
     processEntityMutations();
-    
+
     // Update grid with entity positions
     updateGridOccupancy();
-    
+
     // Now handle movement, hunger, and reproduction
     for (let i = entities.length - 1; i >= 0; i--) {
         const entity = entities[i];
-        
+
         // Update hunger status
         entity.timeSinceLastMeal++;
-        
+
         // Get the current adjusted survival time based on simulation speed
         const currentSurvivalTime = getCurrentSurvivalTime();
-        
+
         // Check if entity should die from hunger
         if (entity.timeSinceLastMeal >= currentSurvivalTime) {
             // Show dying animation
             entity.isDying = true;
-            
+
             // Remove entity after brief flashing animation
             if (entity.timeSinceLastMeal >= currentSurvivalTime + dyingAnimationTime) {
                 entities.splice(i, 1);
                 continue;
             }
         }
-        
+
         // Handle grid-based movement
         if (entity.moveCooldown <= 0) {
             moveEntityOnGrid(entity);
@@ -281,20 +210,9 @@ function updateEntities() {
         } else {
             entity.moveCooldown--;
         }
-        
-        // Reproduce if enough food collected
-        if (entity.foodCollected >= foodNeededToReproduce) {
-            entity.foodCollected = 0;
-            
-            // Try to create a new entity
-            const newEntity = createEntity(entity);
-            
-            // Only add the entity if we found a valid position for it
-            if (newEntity) {
-                entities.push(newEntity);
-            }
-        }
-        
+
+        attemptReproduction(entity); // Attempt reproduction
+
         // Draw entity
         ctx.fillStyle = getEntityColor(entity);
         ctx.fillRect(
@@ -303,30 +221,5 @@ function updateEntities() {
             entity.size,
             entity.size
         );
-    }
-}
-
-function processEntityMutations() {
-    // Process each mutation's behavior
-    for (let i = entities.length - 1; i >= 0; i--) {
-        const entity = entities[i];
-        
-        // Check each mutation the entity has and call its update function
-        Object.keys(entity.mutations).forEach(mutationName => {
-            if (mutations[mutationName].onUpdate) {
-                const actionTaken = mutations[mutationName].onUpdate(entity, entities);
-                
-                // Reset hunger timer if prey was eaten
-                if (actionTaken) {
-                    entity.timeSinceLastMeal = 0;
-                }
-                
-                // If an action was taken that might have modified the entities array,
-                // we need to make sure our index is still valid
-                if (actionTaken && i >= entities.length) {
-                    i = entities.length - 1;
-                }
-            }
-        });
     }
 }
