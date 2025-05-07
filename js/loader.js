@@ -3,7 +3,8 @@
 
 // Array of scripts to load in specific order
 const scripts = [
-    'js/grid.js',       // Grid system needs to load first
+    'js/utils.js',      // Utility functions (load first)
+    'js/grid.js',       // Grid system 
     'js/mutations.js',  // Mutations definitions
     'js/food.js',       // Food management
     'js/entity.js',     // Entity management

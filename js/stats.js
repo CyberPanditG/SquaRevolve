@@ -17,6 +17,12 @@ const statsPanel = document.querySelector('.stats');
 const toggleButton = document.getElementById('toggleStats');
 const statsHeader = document.querySelector('.stats-header');
 
+// Debug mutation counters - can be removed later
+const debugStatsContainer = document.createElement('div');
+debugStatsContainer.className = 'debug-stats';
+debugStatsContainer.style.cssText = 'position: absolute; bottom: 10px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 8px; border-radius: 4px; font-family: monospace; z-index: 1000;';
+document.body.appendChild(debugStatsContainer);
+
 // Variables for FPS calculation
 let frameTimes = []; // Store frame times for FPS calculation
 const framesToTrack = 30;
@@ -161,14 +167,37 @@ function updateFpsCounter(deltaTime) {
     }
 }
 
+// Add mutation tracking display to the debug panel
+function updateDebugStats() {
+    // Calculate total grid cells
+    const totalGridCells = gridWidth * gridHeight;
+    // Get current entity count
+    const totalEntities = entities.length;
+    
+    debugStatsContainer.innerHTML = `
+        <div style="margin-bottom: 5px; font-weight: bold;">Mutation Tracking (Debug)</div>
+        <div>Blue → Red: ${mutationStats.blueToRed}</div>
+        <div>Red → Blue: ${mutationStats.redToBlue}</div>
+        <div style="margin-top: 8px; border-top: 1px solid #555; padding-top: 8px;">
+            <div>Grid Cells: ${totalGridCells} (${gridWidth}x${gridHeight})</div>
+            <div>Total Entities: ${totalEntities}</div>
+        </div>
+    `;
+}
+
 // Update the entity counts in the stats panel
 function updateEntityStats(entities, foods) {
-    const blueCount = entities.filter(e => !e.mutations.mouth).length;
-    const redCount = entities.filter(e => e.mutations.mouth).length;
+    // Blue squares are those with grassAffinity mutation
+    const blueCount = entities.filter(e => e.mutations.grassAffinity).length;
+    // Red squares are those with entityAffinity mutation
+    const redCount = entities.filter(e => e.mutations.entityAffinity).length;
     
     blueCountElement.textContent = blueCount;
     redCountElement.textContent = redCount;
     foodCountElement.textContent = foods.length;
+    
+    // Update debug stats
+    updateDebugStats();
 }
 
 // Reset FPS tracking for new simulation
