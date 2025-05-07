@@ -8,6 +8,7 @@ let lastFrameTime = 0;
 const targetFps = 60;
 let autoResetTimer = 0;
 let isFirstInitialization = true;
+let isPaused = false; // Flag to track if simulation is paused
 
 // Initialize on load and resize
 window.addEventListener('load', initialize);
@@ -28,17 +29,21 @@ function updateEntitySpeeds() {
 
 function initialize() {
     resizeCanvas();
-    
+
+    // Update food limits based on the new grid size
+    updateFoodLimits();
+
     // Create initial entities
     for (let i = 0; i < initialProducers; i++) {
         entities.push(createEntity());
     }
-    
-    addFood(initialFoodCount);
-    
+
+    // Add food according to the dynamically calculated minimum
+    addFood(minFoodAmount);
+
     // Initialize stats panel
     initializeStats();
-    
+
     if (isFirstInitialization) {
         lastFrameTime = performance.now();
         requestAnimationFrame(simulationLoop);
@@ -50,49 +55,74 @@ function simulationLoop(timestamp) {
     // Calculate time since last frame
     const deltaTime = timestamp - lastFrameTime;
     lastFrameTime = timestamp;
-    
+
     // Update FPS counter in stats panel
     updateFpsCounter(deltaTime);
-    
+
     // Clear and draw
     ctx.fillStyle = '#222';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     drawGrid();
-    
-    // Maintain minimum food level
-    if (foods.length < minFoodAmount) {
-        addFood(minFoodAmount - foods.length);
-    }
-    
-    clearGrid();
-    drawFood();
-    updateEntities();
-    
-    // Update entity stats display
-    updateEntityStats(entities, foods);
-    
-    // Check for auto-reset condition
-    if (entities.length === 0) {
-        autoResetTimer += deltaTime;
-        if (autoResetTimer >= 1000) {
-            resetSimulation();
+
+    // Only update simulation if not paused
+    if (!isPaused) {
+        // Maintain minimum food level
+        if (foods.length < minFoodAmount) {
+            addFood(minFoodAmount - foods.length);
         }
+
+        clearGrid();
+        drawFood();
+        updateEntities();
+
+        // Check for auto-reset condition
+        if (entities.length === 0) {
+            autoResetTimer += deltaTime;
+            if (autoResetTimer >= 1000) {
+                resetSimulation();
+            }
+        } else {
+            autoResetTimer = 0;
+        }
+
     } else {
-        autoResetTimer = 0;
+        // When paused, still draw everything but don't update state
+        clearGrid();
+        drawFood();
+
+        // Draw entities without updating them
+        entities.forEach(entity => {
+            ctx.fillStyle = getEntityColor(entity);
+            ctx.fillRect(
+                entity.x - entity.size / 2,
+                entity.y - entity.size / 2,
+                entity.size,
+                entity.size
+            );
+        });
+
+        // Draw "PAUSED" text overlay
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
     }
-    
+
+    // Update entity stats display (always show stats even when paused)
+    updateEntityStats(entities, foods);
+
     requestAnimationFrame(simulationLoop);
 }
 
 function resetSimulation() {
     entities = [];
     foods = [];
-    
+
     // Reset mutation tracking statistics
     mutationStats.blueToRed = 0;
     mutationStats.redToBlue = 0;
-    
+
     resetStatsTracking();
     lastFrameTime = performance.now();
     autoResetTimer = 0;
