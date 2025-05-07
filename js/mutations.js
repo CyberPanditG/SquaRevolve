@@ -1,7 +1,7 @@
 // Mutation definitions - easy to add new mutations
 const mutations = {
     grassAffinity: {
-        chance: 0.10, // 1% chance to get this mutation
+        chance: 0.10, // 10% chance to get this mutation
         color: '#3b82f6', // Blue
         onUpdate: (entity, allEntities) => {
             // Skip if entity has entityAffinity (conflicting food source)
@@ -16,7 +16,7 @@ const mutations = {
         }
     },
     entityAffinity: {
-        chance: 0.10, // 1% chance to get this mutation
+        chance: 0.10, // 10% chance to get this mutation
         color: '#ef4444', // Red
         onUpdate: (entity, allEntities) => {
             // Find potential prey in the same grid cell
@@ -40,9 +40,42 @@ const mutations = {
             }
             return false; // No prey eaten
         }
+    },
+    speedy: {
+        chance: 0.08, // 8% chance to get this mutation
+        color: '#1e3a8a', // Dark blue base color
+        onUpdate: (entity) => {
+            // Make entity move faster by reducing moveDelay
+            if (!entity.speedyApplied) {
+                entity.moveDelay = Math.max(1, Math.floor(entity.moveDelay * 0.7)); // 30% faster
+                entity.speedyApplied = true; // Track that we've applied the speed boost
+            }
+            
+            // TRADEOFF: Faster entities burn energy more quickly (get hungry faster)
+            // Increase hunger by an additional 0.5 each update
+            entity.timeSinceLastMeal += 0.5;
+            
+            return false; // This mutation doesn't directly collect food
+        }
+    },
+    bulky: {
+        chance: 0.08, // 8% chance to get this mutation
+        color: '#1e3a8a', // Dark blue base color
+        onUpdate: (entity) => {
+            // Make entity move slower by increasing moveDelay
+            if (!entity.bulkyApplied) {
+                entity.moveDelay = Math.floor(entity.moveDelay * 1.3); // 30% slower
+                entity.bulkyApplied = true; // Track that we've applied the efficiency modifier
+            }
+            
+            // BENEFIT: Bulky entities burn energy more slowly (get hungry slower)
+            // Decrease hunger by 0.5 each update (partially counteracting normal hunger increase)
+            entity.timeSinceLastMeal -= 0.5;
+            
+            return false; // This mutation doesn't directly collect food
+        }
     }
     // Add more mutations here in the future, like:
-    // speed: { chance: 0.01, color: '#9333ea', onUpdate: ... }
     // size: { chance: 0.01, color: '#0369a1', onUpdate: ... }
     // etc.
 };
@@ -50,14 +83,16 @@ const mutations = {
 // Debug tracking - mutation counts
 const mutationStats = {
     blueToRed: 0,  // grassAffinity to entityAffinity
-    redToBlue: 0   // entityAffinity to grassAffinity
+    redToBlue: 0,   // entityAffinity to grassAffinity
+    speedyAdoptions: 0, // Tracking speedy mutation adoption
+    bulkyAdoptions: 0 // Tracking bulky mutation adoption
 };
 
 // Define mutation groups (mutations that cannot coexist)
 const mutationGroups = {
-    foodSource: ['grassAffinity', 'entityAffinity'] // Entities can only have one food source
+    foodSource: ['grassAffinity', 'entityAffinity'], // Entities can only have one food source
+    movement: ['speedy', 'bulky'] // Entities can only have one movement mutation
     // In the future you can add more groups, like:
-    // movement: ['fastMovement', 'teleportation']
     // defense: ['armor', 'camouflage']
 };
 
@@ -86,6 +121,16 @@ function handleMutations(entity, parent) {
         entity.mutations[mutationName] = true;
     });
     
+    // Random chance to lose movement mutations (speedy or bulky)
+    // This creates more dynamic evolution patterns
+    if (entity.mutations.speedy && Math.random() < 0.10) { // 10% chance to lose speedy
+        delete entity.mutations.speedy;
+    }
+    
+    if (entity.mutations.bulky && Math.random() < 0.10) { // 10% chance to lose bulky
+        delete entity.mutations.bulky;
+    }
+    
     // Chance for new mutations
     Object.keys(mutations).forEach(mutationName => {
         // Skip if entity already has this mutation
@@ -111,6 +156,10 @@ function handleMutations(entity, parent) {
                 mutationStats.blueToRed++;
             } else if (hadEntityAffinity && mutationName === 'grassAffinity') {
                 mutationStats.redToBlue++;
+            } else if (mutationName === 'speedy') {
+                mutationStats.speedyAdoptions++;
+            } else if (mutationName === 'bulky') {
+                mutationStats.bulkyAdoptions++;
             }
         }
     });
@@ -125,9 +174,28 @@ function getEntityColor(entity) {
         }
     }
     
-    // Return color based on mutations (priority to certain mutations)
-    if (entity.mutations.entityAffinity) return mutations.entityAffinity.color;
-    if (entity.mutations.grassAffinity) return mutations.grassAffinity.color;
+    // Handle combined mutations with different color variations
+    if (entity.mutations.entityAffinity) {
+        // Red predator base
+        if (entity.mutations.speedy) {
+            return '#f87171'; // Lighter red for predators with speed
+        }
+        if (entity.mutations.bulky) {
+            return '#991b1b'; // Darker red for efficient predators
+        }
+        return mutations.entityAffinity.color; // Normal red
+    }
+    
+    if (entity.mutations.grassAffinity) {
+        // Blue producer base
+        if (entity.mutations.speedy) {
+            return '#60a5fa'; // Lighter blue for producers with speed
+        }
+        if (entity.mutations.bulky) {
+            return '#1e40af'; // Darker blue for efficient producers
+        }
+        return mutations.grassAffinity.color; // Normal blue
+    }
     
     // Default color if no mutations affecting appearance
     return entity.baseColor;
