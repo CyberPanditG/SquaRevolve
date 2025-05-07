@@ -55,7 +55,7 @@ function simulationLoop(timestamp) {
     updateFpsCounter(deltaTime);
     
     // Clear and draw
-    ctx.fillStyle = '#222';
+    ctx.fillStyle = '#eed9c4';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     drawGrid();
