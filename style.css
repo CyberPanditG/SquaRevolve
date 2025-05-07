@@ -112,3 +112,34 @@ body {
     margin-top: 5px;
     cursor: pointer;
 }
+
+.control-buttons {
+    display: flex;
+    justify-content: space-between;
+    margin: 15px 0;
+}
+
+.control-buttons button {
+    background: rgba(60, 60, 60, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    flex: 1;
+    margin: 0 5px;
+    transition: all 0.2s ease;
+}
+
+.control-buttons button:first-child {
+    margin-left: 0;
+}
+
+.control-buttons button:last-child {
+    margin-right: 0;
+}
+
+.control-buttons button:hover {
+    background: rgba(80, 80, 80, 0.8);
+    border-color: rgba(255, 255, 255, 0.5);
+}

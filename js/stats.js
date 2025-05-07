@@ -11,6 +11,8 @@ const speedSlider = document.getElementById('speedSlider');
 const speedValueDisplay = document.getElementById('speedValue');
 const fpsCountElement = document.getElementById('fpsCount');
 const targetFpsElement = document.getElementById('targetFps');
+const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+const resetBtn = document.getElementById('resetBtn');
 
 // Stats panel elements
 const statsPanel = document.querySelector('.stats');
@@ -54,6 +56,12 @@ function setupStatsEventListeners() {
     // Speed slider control
     speedSlider.addEventListener('input', updateSimulationSpeed);
     
+    // Pause/Resume button
+    pauseResumeBtn.addEventListener('click', togglePauseResume);
+    
+    // Reset button
+    resetBtn.addEventListener('click', () => resetSimulation());
+    
     // Draggable panel functionality
     statsHeader.addEventListener('mousedown', startDrag);
     document.addEventListener('mousemove', drag);
@@ -82,6 +90,22 @@ function updateSimulationSpeed() {
     simulationSpeed = parseFloat(speedSlider.value);
     speedValueDisplay.textContent = simulationSpeed.toFixed(1);
     updateEntitySpeeds();
+}
+
+// Toggle pause/resume state
+function togglePauseResume() {
+    // Toggle the pause state
+    isPaused = !isPaused;
+    
+    // Update button text
+    pauseResumeBtn.textContent = isPaused ? 'Resume' : 'Pause';
+    
+    // Visual feedback on button
+    if (isPaused) {
+        pauseResumeBtn.style.background = 'rgba(80, 200, 120, 0.7)'; // Green when paused (ready to resume)
+    } else {
+        pauseResumeBtn.style.background = 'rgba(60, 60, 60, 0.7)'; // Default when running
+    }
 }
 
 // Start dragging the panel
@@ -174,10 +198,31 @@ function updateDebugStats() {
     // Get current entity count
     const totalEntities = entities.length;
     
+    // Count speedy and bulky mutations
+    const speedyMutations = entities.filter(e => e.mutations.speedy).length;
+    const fastBlue = entities.filter(e => e.mutations.grassAffinity && e.mutations.speedy).length;
+    const fastRed = entities.filter(e => e.mutations.entityAffinity && e.mutations.speedy).length;
+    
+    const bulkyMutations = entities.filter(e => e.mutations.bulky).length;
+    const bulkyBlue = entities.filter(e => e.mutations.grassAffinity && e.mutations.bulky).length;
+    const bulkyRed = entities.filter(e => e.mutations.entityAffinity && e.mutations.bulky).length;
+    
+    // Count normal entities (those without speedy or bulky)
+    const normalBlue = entities.filter(e => e.mutations.grassAffinity && !e.mutations.speedy && !e.mutations.bulky).length;
+    const normalRed = entities.filter(e => e.mutations.entityAffinity && !e.mutations.speedy && !e.mutations.bulky).length;
+    const normalTotal = normalBlue + normalRed;
+    
     debugStatsContainer.innerHTML = `
         <div style="margin-bottom: 5px; font-weight: bold;">Mutation Tracking (Debug)</div>
-        <div>Blue → Red: ${mutationStats.blueToRed}</div>
-        <div>Red → Blue: ${mutationStats.redToBlue}</div>
+        <div style="margin-top: 5px;">Normal Entities: ${normalTotal} (${Math.round(normalTotal/totalEntities*100 || 0)}%)</div>
+        <div>- Normal Blue: ${normalBlue}</div>
+        <div>- Normal Red: ${normalRed}</div>
+        <div style="margin-top: 5px;">Speedy Mutations: ${speedyMutations} (${Math.round(speedyMutations/totalEntities*100 || 0)}%)</div>
+        <div>- Fast Blue: ${fastBlue}</div>
+        <div>- Fast Red: ${fastRed}</div>
+        <div style="margin-top: 5px;">Bulky Mutations: ${bulkyMutations} (${Math.round(bulkyMutations/totalEntities*100 || 0)}%)</div>
+        <div>- Bulky Blue: ${bulkyBlue}</div>
+        <div>- Bulky Red: ${bulkyRed}</div>
         <div style="margin-top: 8px; border-top: 1px solid #555; padding-top: 8px;">
             <div>Grid Cells: ${totalGridCells} (${gridWidth}x${gridHeight})</div>
             <div>Total Entities: ${totalEntities}</div>
