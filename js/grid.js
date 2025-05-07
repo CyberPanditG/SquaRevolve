@@ -13,6 +13,11 @@ function setupGrid() {
     for (let y = 0; y < gridHeight; y++) {
         grid[y] = new Array(gridWidth).fill(null);
     }
+    
+    // Update food limits based on new grid size
+    if (typeof updateFoodLimits === 'function') {
+        updateFoodLimits();
+    }
 }
 
 function drawGrid() {

@@ -1,10 +1,30 @@
 // Food management
 const initialFoodCount = 200;
-const maxFood = 500;
+// Make maxFood and minFoodAmount dynamic based on grid size
+let maxFood = 500; // Initial default, will be updated when grid is created
+let minFoodAmount = 250; // Initial default, will be updated when grid is created
+
+// Function to update food limits based on grid size
+function updateFoodLimits() {
+    const totalGridCells = gridWidth * gridHeight;
+    // Max food is half of total grid cells
+    maxFood = Math.floor(totalGridCells / 2);
+    
+    // Min food is 15% of total grid cells
+    const rawMinFood = totalGridCells * 0.15;
+    // Round to nearest 10
+    minFoodAmount =  Math.round(rawMinFood / 10) * 10;
+    
+    // Update UI if it exists
+    if (minFoodSlider) {
+        minFoodSlider.max = maxFood;
+        minFoodSlider.value = minFoodAmount;
+        minFoodValueDisplay.textContent = minFoodAmount;
+    }
+}
 
 // Food collection
 let foods = [];
-let minFoodAmount = 250; // Default minimum food amount
 
 function createFood() {
     // Place food at grid cell centers
@@ -17,7 +37,7 @@ function createFood() {
         y: position.y,
         gridX: gridX,
         gridY: gridY,
-        radius: 4,
+        radius: gridCellSize * 0.2, // Radius proportional to grid size (20% of cell)
         color: '#4ade80' // Green
     };
 }
