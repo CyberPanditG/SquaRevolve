@@ -67,9 +67,9 @@ function setupStatsEventListeners() {
     document.addEventListener('mousemove', drag);
     document.addEventListener('mouseup', endDrag);
     
-    // Touch support for mobile
-    statsHeader.addEventListener('touchstart', startDrag);
-    document.addEventListener('touchmove', drag);
+    // Touch support for mobile - explicitly mark as non-passive since we use preventDefault()
+    statsHeader.addEventListener('touchstart', startDrag, { passive: false });
+    document.addEventListener('touchmove', drag, { passive: false });
     document.addEventListener('touchend', endDrag);
 }
 
