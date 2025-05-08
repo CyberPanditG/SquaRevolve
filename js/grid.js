@@ -2,6 +2,12 @@
 const gridCellSize = 20; // Size of each cell in the grid
 let gridWidth, gridHeight; // Will be calculated based on canvas size
 let grid = []; // 2D array to store grid cells
+let gridCanvas; // Offscreen canvas for grid drawing
+let gridCtx; // Context for grid canvas
+let gridNeedsUpdate = true; // Flag to track if grid needs redrawing
+
+// Efficient grid occupancy tracking
+let occupancyMap = {}; // Maps "x,y" strings to entities for fast lookups
 
 // Initialize grid
 function setupGrid() {
@@ -14,31 +20,64 @@ function setupGrid() {
         grid[y] = new Array(gridWidth).fill(null);
     }
     
+    // Reset occupancy map
+    occupancyMap = {};
+    
+    // Create or resize offscreen canvas for grid
+    if (!gridCanvas) {
+        gridCanvas = document.createElement('canvas');
+        gridCtx = gridCanvas.getContext('2d');
+    }
+    gridCanvas.width = canvas.width;
+    gridCanvas.height = canvas.height;
+    
+    // Mark grid for redrawing
+    gridNeedsUpdate = true;
+    
     // Update food limits based on new grid size
     if (typeof updateFoodLimits === 'function') {
         updateFoodLimits();
     }
 }
 
-function drawGrid() {
-    ctx.strokeStyle = 'rgba(100, 100, 100, 0.2)';
-    ctx.lineWidth = 0.5;
+// Draw grid to offscreen canvas
+function updateGridCanvas() {
+    if (!gridNeedsUpdate) return;
+    
+    gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+    gridCtx.strokeStyle = 'rgba(100, 100, 100, 0.2)';
+    gridCtx.lineWidth = 0.5;
     
     // Draw vertical lines
     for (let x = 0; x <= gridWidth; x++) {
-        ctx.beginPath();
-        ctx.moveTo(x * gridCellSize, 0);
-        ctx.lineTo(x * gridCellSize, canvas.height);
-        ctx.stroke();
+        gridCtx.beginPath();
+        gridCtx.moveTo(x * gridCellSize, 0);
+        gridCtx.lineTo(x * gridCellSize, gridCanvas.height);
+        gridCtx.stroke();
     }
     
     // Draw horizontal lines
     for (let y = 0; y <= gridHeight; y++) {
-        ctx.beginPath();
-        ctx.moveTo(0, y * gridCellSize);
-        ctx.lineTo(canvas.width, y * gridCellSize);
-        ctx.stroke();
+        gridCtx.beginPath();
+        gridCtx.moveTo(0, y * gridCellSize);
+        gridCtx.lineTo(gridCanvas.width, y * gridCellSize);
+        gridCtx.stroke();
     }
+    
+    gridNeedsUpdate = false;
+}
+
+function drawGrid() {
+    // Update the grid canvas if needed
+    updateGridCanvas();
+    
+    // Draw the cached grid
+    ctx.drawImage(gridCanvas, 0, 0);
+}
+
+// Call this when the grid needs to be redrawn (e.g., window resize)
+function refreshGrid() {
+    gridNeedsUpdate = true;
 }
 
 function clearGrid() {
@@ -48,6 +87,9 @@ function clearGrid() {
             grid[y][x] = null;
         }
     }
+    
+    // Reset occupancy map
+    occupancyMap = {};
 }
 
 // Get grid coordinates from pixel position
@@ -66,14 +108,4 @@ function getPixelCoords(gridX, gridY) {
         x: gridX * gridCellSize + gridCellSize / 2,
         y: gridY * gridCellSize + gridCellSize / 2
     };
-}
-
-function updateGridOccupancy() {
-    // Place entities in the grid
-    entities.forEach(entity => {
-        const gridCoords = getGridCoords(entity.x, entity.y);
-        entity.gridX = gridCoords.x;
-        entity.gridY = gridCoords.y;
-        grid[gridCoords.y][gridCoords.x] = entity;
-    });
 }
