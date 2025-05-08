@@ -114,3 +114,119 @@ function isCellOccupied(gridX, gridY, excludeEntity = null) {
     return true;
 }
 
+// Profiling utilities
+const profiler = {
+    metrics: {},
+    active: false,
+    sampleCount: 0,
+    maxSamples: 100, // Number of samples to collect before calculating averages
+    
+    // Start measuring a function's execution time
+    start: function(label) {
+        if (!this.active) return;
+        
+        if (!this.metrics[label]) {
+            this.metrics[label] = {
+                calls: 0,
+                totalTime: 0,
+                minTime: Number.MAX_VALUE,
+                maxTime: 0,
+                startTime: 0
+            };
+        }
+        
+        this.metrics[label].startTime = performance.now();
+        this.metrics[label].calls++;
+    },
+    
+    // End measuring a function's execution time
+    end: function(label) {
+        if (!this.active || !this.metrics[label]) return;
+        
+        const endTime = performance.now();
+        const executionTime = endTime - this.metrics[label].startTime;
+        
+        this.metrics[label].totalTime += executionTime;
+        this.metrics[label].minTime = Math.min(this.metrics[label].minTime, executionTime);
+        this.metrics[label].maxTime = Math.max(this.metrics[label].maxTime, executionTime);
+    },
+    
+    // Toggle profiling on/off
+    toggle: function() {
+        this.active = !this.active;
+        if (this.active) {
+            console.log("Profiling started - collecting data...");
+            this.reset();
+        } else {
+            console.log("Profiling stopped - displaying results:");
+            this.report();
+        }
+        return this.active;
+    },
+    
+    // Reset profiling data
+    reset: function() {
+        this.metrics = {};
+        this.sampleCount = 0;
+    },
+    
+    // Generate a performance report
+    report: function() {
+        console.group("Performance Report");
+        
+        // Sort functions by total time (descending)
+        const sortedMetrics = Object.entries(this.metrics).sort((a, b) => {
+            return b[1].totalTime - a[1].totalTime;
+        });
+        
+        // Calculate total measured time across all functions
+        const totalTime = sortedMetrics.reduce((sum, [_, data]) => sum + data.totalTime, 0);
+        
+        // Display metrics for each function
+        sortedMetrics.forEach(([label, data]) => {
+            const avgTime = data.totalTime / data.calls;
+            const percentage = (data.totalTime / totalTime * 100).toFixed(2);
+            
+            console.log(`${label}:
+    Calls: ${data.calls}
+    Total: ${data.totalTime.toFixed(2)}ms (${percentage}% of measured time)
+    Avg: ${avgTime.toFixed(3)}ms
+    Min: ${data.minTime.toFixed(3)}ms
+    Max: ${data.maxTime.toFixed(3)}ms`);
+        });
+        
+        console.groupEnd();
+    }
+};
+
+// Add keyboard shortcut for toggling profiling (Ctrl+P)
+document.addEventListener('keydown', function(event) {
+    if (event.ctrlKey && event.key === 'p') {
+        event.preventDefault();
+        const isActive = profiler.toggle();
+        
+        // Create a visual indicator for profiling status
+        let statusElement = document.getElementById('profilerStatus');
+        if (!statusElement) {
+            statusElement = document.createElement('div');
+            statusElement.id = 'profilerStatus';
+            statusElement.style.position = 'fixed';
+            statusElement.style.top = '10px';
+            statusElement.style.right = '10px';
+            statusElement.style.padding = '5px 10px';
+            statusElement.style.borderRadius = '5px';
+            statusElement.style.fontSize = '12px';
+            statusElement.style.fontFamily = 'monospace';
+            statusElement.style.zIndex = 1000;
+            document.body.appendChild(statusElement);
+        }
+        
+        if (isActive) {
+            statusElement.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            statusElement.textContent = 'Profiling: ON';
+        } else {
+            statusElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            statusElement.textContent = 'Profiling: OFF';
+        }
+    }
+});
