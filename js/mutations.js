@@ -50,7 +50,7 @@ const mutations = {
         onUpdate: (entity) => {
             // Make entity move faster by reducing moveDelay
             if (!entity.speedyApplied) {
-                entity.moveDelay = Math.max(1, Math.floor(entity.moveDelay * 0.7)); // 30% faster
+                entity.moveDelay = Math.max(1, Math.floor(entity.moveDelay * 0.3)); // 70% faster
                 entity.speedyApplied = true; // Track that we've applied the speed boost
             }
             
@@ -67,12 +67,12 @@ const mutations = {
         onUpdate: (entity) => {
             // Make entity move slower by increasing moveDelay
             if (!entity.bulkyApplied) {
-                entity.moveDelay = Math.floor(entity.moveDelay * 1.3); // 30% slower
+                entity.moveDelay = Math.floor(entity.moveDelay * 1.7); // 70% slower
                 entity.bulkyApplied = true; // Track that we've applied the efficiency modifier
             }
             
             // BENEFIT: Bulky entities burn energy more slowly (get hungry slower)
-            // Decrease hunger by 0.5 each update (partially counteracting normal hunger increase)
+            // Decrease hunger by 0.3 each update (partially counteracting normal hunger increase)
             entity.timeSinceLastMeal -= 0.5;
             
             return false; // This mutation doesn't directly collect food
@@ -170,9 +170,11 @@ function handleMutations(entity, parent) {
 
 // Get color for an entity based on its mutations
 function getEntityColor(entity) {
-    // If entity is dying, show a flashing effect
+    // If entity is dying, show a flashing effect using the frame counter
     if (entity.isDying) {
-        if (Math.floor(Date.now() / 100) % 2 === 0) {
+        // Flash rate is scaled by simulation speed - faster simulation = faster flashing
+        const flashRate = Math.max(3, Math.floor(10 / simulationSpeed));
+        if (Math.floor(frameCounter / flashRate) % 2 === 0) {
             return 'rgba(255, 255, 255, 0.7)'; // Flashing white
         }
     }
