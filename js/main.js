@@ -90,17 +90,7 @@ function simulationLoop(timestamp) {
         // When paused, still draw everything but don't update state
         clearGrid();
         drawFood();
-
-        // Draw entities without updating them
-        entities.forEach(entity => {
-            ctx.fillStyle = getEntityColor(entity);
-            ctx.fillRect(
-                entity.x - entity.size / 2,
-                entity.y - entity.size / 2,
-                entity.size,
-                entity.size
-            );
-        });
+        batchDrawEntities(entities);
 
         // Draw "PAUSED" text overlay
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
@@ -124,6 +114,7 @@ function resetSimulation() {
     mutationStats.redToBlue = 0;
 
     resetStatsTracking();
+    refreshGrid(); // Ensure grid is redrawn on reset
     lastFrameTime = performance.now();
     autoResetTimer = 0;
     initialize();
