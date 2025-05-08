@@ -8,30 +8,6 @@ const baseEntityMoveDelay = 15; // Default delay at 1.0x speed
 // Entity collection
 let entities = [];
 
-// Function to get current survival time adjusted for simulation speed
-function getCurrentSurvivalTime() {
-    return Math.round(baseSurvivalTime / simulationSpeed);
-}
-
-// Helper function to check if a grid cell is occupied
-function isCellOccupied(gridX, gridY, excludeEntity = null) {
-    // Check if position is within grid bounds
-    if (gridX < 0 || gridX >= gridWidth || gridY < 0 || gridY >= gridHeight) {
-        return true; // Consider out-of-bounds as "occupied"
-    }
-
-    // Check if cell is occupied by an entity
-    for (let i = 0; i < entities.length; i++) {
-        const entity = entities[i];
-        if (entity === excludeEntity) continue; // Skip the excluded entity
-        if (entity.gridX === gridX && entity.gridY === gridY) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 function createEntity(parent = null) {
     const size = gridCellSize * 0.8; // Make entity slightly smaller than grid cell
 
