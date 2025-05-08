@@ -31,6 +31,9 @@ const mutations = {
                     // Predator gets food from eating prey
                     entity.foodCollected++;
                     
+                    // Remove prey from occupancy map before removing it from the entities array
+                    removeEntityFromOccupancyMap(target);
+                    
                     // Remove the prey
                     allEntities.splice(j, 1);
                     
@@ -229,15 +232,15 @@ function processEntityMutations() {
 
 // Check if a predator can move to a cell containing potential prey
 function canPredatorAttack(predator, gridX, gridY) {
-    for (let i = 0; i < entities.length; i++) {
-        const otherEntity = entities[i];
-        if (otherEntity === predator) continue;
-        
-        if (otherEntity.gridX === gridX && otherEntity.gridY === gridY) {
-            // Predators can move onto cells with non-predator entities
-            return !otherEntity.mutations.entityAffinity;
-        }
+    // Fast lookup using occupancy map
+    const key = `${gridX},${gridY}`;
+    const potentialPrey = occupancyMap[key];
+    
+    // If there's no entity at this position, return false
+    if (!potentialPrey || potentialPrey === predator) {
+        return false;
     }
     
-    return false;
+    // Predators can move onto cells with non-predator entities
+    return !potentialPrey.mutations.entityAffinity;
 }
