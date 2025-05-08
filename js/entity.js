@@ -43,6 +43,9 @@ function createEntity(parent = null) {
         y: position.y,
         gridX: gridX,
         gridY: gridY,
+        previousGridX: gridX, // Add tracking for previous position
+        previousGridY: gridY, // Add tracking for previous position
+        hasMoved: false,      // Flag to track if entity has moved since last grid update
         size: size,
         foodCollected: 0,
         mutations: {},  // Back to using an object to track multiple mutations
@@ -82,12 +85,22 @@ function moveEntityOnGrid(entity) {
         }
 
         // Use our helper function to check if cell is occupied (excluding this entity)
-        return !isCellOccupied(newGridX, newGridY, entity);
+        const result = !isCellOccupied(newGridX, newGridY, entity);
+        profiler.end('isCellOccupied');
+        return result;
     });
 
     if (validDirections.length > 0) {
         // Choose a random direction from valid options
         const direction = getRandomElement(validDirections);
+
+        // Store previous position
+        entity.previousGridX = entity.gridX;
+        entity.previousGridY = entity.gridY;
+
+        // Remove entity from previous grid position in occupancy map
+        const oldKey = `${entity.gridX},${entity.gridY}`;
+        delete occupancyMap[oldKey];
 
         // Update grid coordinates
         entity.gridX += direction.dx;
@@ -97,6 +110,14 @@ function moveEntityOnGrid(entity) {
         const newPosition = getPixelCoords(entity.gridX, entity.gridY);
         entity.x = newPosition.x;
         entity.y = newPosition.y;
+
+        // Add entity to new grid position in occupancy map
+        const newKey = `${entity.gridX},${entity.gridY}`;
+        occupancyMap[newKey] = entity;
+
+        // Set hasMoved flag to true
+        entity.hasMoved = true;
+        profiler.end('applyMovement');
     }
     // If no valid directions, entity stays in place
 }
@@ -105,7 +126,7 @@ function attemptReproduction(entity) {
     // Calculate health percentage (0-100%)
     const hungerRatio = entity.timeSinceLastMeal / getCurrentSurvivalTime();
     const healthPercentage = (1 - hungerRatio) * 100;
-    
+
     // Only allow reproduction when entity is healthy (above 70% health)
     if (healthPercentage < 70) {
         return; // Too hungry to reproduce
@@ -113,23 +134,23 @@ function attemptReproduction(entity) {
 
     // Check local population density
     const localEntities = countNearbyEntities(entity, 5); // Count entities within 5 grid cells
-    
+
     // Reduce reproduction chance when overcrowded
     let densityFactor = 1.0;
     if (localEntities > 5) {
         densityFactor = 5 / localEntities; // Reduces as density increases
     }
-    
+
     // Base reproduction chance on health
     const reproductionChance = 0.1 * (healthPercentage / 100) * densityFactor;
-    
+
     // Check food and random chance with health factor
     if (entity.foodCollected >= foodNeededToReproduce && Math.random() < reproductionChance) {
         entity.foodCollected -= foodNeededToReproduce;
-        
+
         // Reset hunger timer partially after reproduction (reproduction takes energy)
         entity.timeSinceLastMeal += getCurrentSurvivalTime() * 0.2; // Add 20% of survival time
-        
+
         const offspring = createEntity(entity);
         if (offspring) {
             // Start offspring with some hunger
@@ -139,23 +160,35 @@ function attemptReproduction(entity) {
     }
 }
 
-// Helper function to count nearby entities
+// Helper function to count nearby entities more efficiently
 function countNearbyEntities(entity, radius) {
-    return entities.filter(other => {
-        if (entity === other) return false;
-        
-        const dx = Math.abs(entity.gridX - other.gridX);
-        const dy = Math.abs(entity.gridY - other.gridY);
-        return dx <= radius && dy <= radius;
-    }).length;
+    // Define the bounds of our search area
+    const minX = Math.max(0, entity.gridX - radius);
+    const maxX = Math.min(gridWidth - 1, entity.gridX + radius);
+    const minY = Math.max(0, entity.gridY - radius);
+    const maxY = Math.min(gridHeight - 1, entity.gridY + radius);
+
+    let count = 0;
+
+    // Only check entities in cells within our defined bounds
+    for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+            const key = `${x},${y}`;
+            const occupant = occupancyMap[key];
+
+            // If there's an entity here and it's not the one we're checking
+            if (occupant && occupant !== entity) {
+                count++;
+            }
+        }
+    }
+
+    return count;
 }
 
 function updateEntities() {
     // First, process all entities with special mutation behaviors
     processEntityMutations();
-
-    // Update grid with entity positions
-    updateGridOccupancy();
 
     // Now handle movement, hunger, and reproduction
     for (let i = entities.length - 1; i >= 0; i--) {
@@ -174,6 +207,8 @@ function updateEntities() {
 
             // Remove entity after brief flashing animation
             if (entity.timeSinceLastMeal >= currentSurvivalTime + dyingAnimationTime) {
+                // Remove entity from occupancy map before removing from entities array
+                removeEntityFromOccupancyMap(entity);
                 entities.splice(i, 1);
                 continue;
             }
@@ -187,15 +222,10 @@ function updateEntities() {
             entity.moveCooldown--;
         }
 
-        attemptReproduction(entity); // Attempt reproduction
-
-        // Draw entity
-        ctx.fillStyle = getEntityColor(entity);
-        ctx.fillRect(
-            entity.x - entity.size / 2,
-            entity.y - entity.size / 2,
-            entity.size,
-            entity.size
-        );
+        if (entity.foodCollected >= foodNeededToReproduce) {
+            attemptReproduction(entity); // Attempt reproduction
+        }
     }
+    // Draw all entities in batches by color (replaces individual drawing)
+    batchDrawEntities(entities);
 }
