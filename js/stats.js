@@ -82,7 +82,15 @@ function toggleStatsPanel() {
 // Update minimum food value from slider
 function updateMinFoodValue() {
     minFoodAmount = parseInt(minFoodSlider.value);
-    minFoodValueDisplay.textContent = minFoodAmount;
+    
+    // Calculate and store the user's preferred food percentage
+    const availableSpaces = getAvailableGridSpaces();
+    if (availableSpaces > 0) {
+        userSetFoodPercentage = minFoodAmount / availableSpaces;
+    }
+    
+    // Update the display
+    updateFoodPercentage(minFoodAmount);
 }
 
 // Update simulation speed from slider

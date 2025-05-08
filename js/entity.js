@@ -63,14 +63,18 @@ function createEntity(parent = null) {
 }
 
 function moveEntityOnGrid(entity) {
+    profiler.start('getAdjacentCells');
     // Get possible movement directions
     const directions = getAdjacentCells();
+    profiler.end('getAdjacentCells');
 
     // Special case for predators (entities with entityAffinity) to allow them to move onto prey
     const isPredator = entity.mutations.entityAffinity;
 
+    profiler.start('filterDirections');
     // Filter out directions that would go off the grid or into occupied cells (with special handling for predators)
     const validDirections = directions.filter(dir => {
+        profiler.start('checkDirection');
         const newGridX = entity.gridX + dir.dx;
         const newGridY = entity.gridY + dir.dy;
 
@@ -78,19 +82,26 @@ function moveEntityOnGrid(entity) {
         if (newGridX < 0 || newGridX >= gridWidth || newGridY < 0 || newGridY >= gridHeight) {
             return false;
         }
+        profiler.end('checkDirection');
 
+        profiler.start('canPredatorAttack');
         // For predators, we need special handling to allow them to move onto prey cells
         if (isPredator && canPredatorAttack(entity, newGridX, newGridY)) {
+            profiler.end('canPredatorAttack');
             return true;
         }
+        profiler.end('canPredatorAttack');
 
+        profiler.start('isCellOccupied');
         // Use our helper function to check if cell is occupied (excluding this entity)
         const result = !isCellOccupied(newGridX, newGridY, entity);
         profiler.end('isCellOccupied');
         return result;
     });
+    profiler.end('filterDirections');
 
     if (validDirections.length > 0) {
+        profiler.start('applyMovement');
         // Choose a random direction from valid options
         const direction = getRandomElement(validDirections);
 
@@ -187,9 +198,12 @@ function countNearbyEntities(entity, radius) {
 }
 
 function updateEntities() {
+    profiler.start('processEntityMutations');
     // First, process all entities with special mutation behaviors
     processEntityMutations();
+    profiler.end('processEntityMutations');
 
+    profiler.start('entityMainLoop');
     // Now handle movement, hunger, and reproduction
     for (let i = entities.length - 1; i >= 0; i--) {
         const entity = entities[i];
@@ -216,16 +230,24 @@ function updateEntities() {
 
         // Handle grid-based movement
         if (entity.moveCooldown <= 0) {
+            profiler.start('moveEntityOnGrid');
             moveEntityOnGrid(entity);
+            profiler.end('moveEntityOnGrid');
             entity.moveCooldown = entity.moveDelay;
         } else {
             entity.moveCooldown--;
         }
 
         if (entity.foodCollected >= foodNeededToReproduce) {
+            profiler.start('attemptReproduction');
             attemptReproduction(entity); // Attempt reproduction
+            profiler.end('attemptReproduction');
         }
     }
+    profiler.end('entityMainLoop');
+
+    profiler.start('batchDrawEntities');
     // Draw all entities in batches by color (replaces individual drawing)
     batchDrawEntities(entities);
+    profiler.end('batchDrawEntities');
 }

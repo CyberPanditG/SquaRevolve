@@ -9,6 +9,7 @@ const targetFps = 60;
 let autoResetTimer = 0;
 let isFirstInitialization = true;
 let isPaused = false; // Flag to track if simulation is paused
+let frameCounter = 0; // Frame counter for animations
 
 // Initialize on load and resize
 window.addEventListener('load', initialize);
@@ -31,7 +32,7 @@ function initialize() {
     resizeCanvas();
 
     // Update food limits based on the new grid size
-    updateFoodLimits();
+    updateFoodLimits(true); // Pass true to indicate this is initial setup
 
     // Create initial entities
     for (let i = 0; i < initialProducers; i++) {
@@ -56,25 +57,50 @@ function simulationLoop(timestamp) {
     const deltaTime = timestamp - lastFrameTime;
     lastFrameTime = timestamp;
 
+    profiler.start('fullFrame');
+
     // Update FPS counter in stats panel
     updateFpsCounter(deltaTime);
 
+    // Increment frame counter
+    frameCounter++;
+
+    profiler.start('sceneClear');
     // Clear and draw
     ctx.fillStyle = '#222';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    profiler.end('sceneClear');
 
+    profiler.start('drawGrid');
     drawGrid();
+    profiler.end('drawGrid');
 
     // Only update simulation if not paused
     if (!isPaused) {
+        // Update food limits based on current available spaces
+        // Do this less frequently to avoid slider jumps (every 30 frames)
+        if (frameCounter % 30 === 0) {
+            updateFoodLimits(false); // Update with false to indicate this is not initial setup
+        }
+        
+        profiler.start('foodManagement');
         // Maintain minimum food level
         if (foods.length < minFoodAmount) {
             addFood(minFoodAmount - foods.length);
         }
+        profiler.end('foodManagement');
 
+        profiler.start('clearGrid');
         clearGrid();
+        profiler.end('clearGrid');
+        
+        profiler.start('drawFood');
         drawFood();
+        profiler.end('drawFood');
+        
+        profiler.start('updateEntities');
         updateEntities();
+        profiler.end('updateEntities');
 
         // Check for auto-reset condition
         if (entities.length === 0) {
@@ -88,6 +114,7 @@ function simulationLoop(timestamp) {
 
     } else {
         // When paused, still draw everything but don't update state
+        profiler.start('pausedStateRendering');
         clearGrid();
         drawFood();
         batchDrawEntities(entities);
@@ -97,10 +124,15 @@ function simulationLoop(timestamp) {
         ctx.font = 'bold 48px Arial';
         ctx.textAlign = 'center';
         ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+        profiler.end('pausedStateRendering');
     }
 
+    profiler.start('updateEntityStats');
     // Update entity stats display (always show stats even when paused)
     updateEntityStats(entities, foods);
+    profiler.end('updateEntityStats');
+
+    profiler.end('fullFrame');
 
     requestAnimationFrame(simulationLoop);
 }
